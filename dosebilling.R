@@ -15,9 +15,9 @@ dose<-"SELECT [StudID]
 ,[BatchID] AS 'Batch_ID'
 ,[Accounting] AS 'Dept #'
 FROM [Intranet].[dbo].[Boar_Distrib]
-WHERE [Date_Shipped] > '04-28-19 00:00:00'
+WHERE [Date_Shipped] > '01-01-22 00:00:00'
 AND [StudID] in ('High Desert','MB 7081','MB 7082','MB 7092','MB 7093','MB 7094',
-'MBW Cimarron','MBW Cyclone','SPG62','MBW Yuma','Princeton','Skyline Boar Stud','SPGNC','SPGVA','SPGTX')
+'MBW Cimarron','MBW Cyclone','SPG62','MBW Yuma','Princeton','Skyline Boar Stud','SPGNC','SPGVA','SPGTX','SPG9644')
 AND [Dest]!='* TRASH *'"
 doseraw<-getSQL('Intranet', query=dose)
 
@@ -29,28 +29,45 @@ dose1<-doseraw %>%
                                    ifelse(`Type`=='trad','3 Bill',
                                           ifelse(`Type`=='PCAI','2 Bill',
                                                  ifelse(`Type`=='PCIA','2 Bill',
-                                                        ifelse(`Type`=='pcai','2 Bill','Unknown')))))))
+                                                        ifelse(`Type`=='pcai','2 Bill',
+                                                               ifelse(`Type`=='Trad.','3 Bill',
+                                                                      ifelse(`Type`=='PCA','2 Bill','Unknown')))))))))
 
 dose1a<-left_join(x = dose1,y = dose0,by=c("StudID"="StudID"))
 
-order.dd<-order(dose1a$Site,dose1a$`Dose Size`,dose1a$`Farm Name`)
+dose1a$`Dept #`<-trimws(dose1a$`Dept #`,"r")
 
-dose2<-dose1a[order.dd,]
+dose1b<-read_csv("sowfarms.csv", col_types = cols(cc = col_character()))
 
-dose2<-dose2[c(10,8,2,7,5,4,9,6)]
+dose1c<-left_join(x = dose1a,y = dose1b, by=c("Dept #"="cc"))
+
+order.dd<-order(dose1c$Site,dose1c$`Dose Size`,dose1c$`Farm Name`)
+
+# doseff<-dose1c %>%
+#   filter(StudID%in%c('MB 7083','MB 7084'))
+# 
+# doseff$`Shipping Date`<-as.Date(doseff$`Shipping Date`)
+# 
+# write_csv(x = doseff, file = 'joe.csv', append = FALSE)
+
+dose2<-dose1c[order.dd,]
+
+dose2<-dose2[c(10,8,2,7,5,4,9,6,11,12)]
 
 dose2$`Shipping Date`<-as.Date(dose2$`Shipping Date`)
+
 
 dose3<-dose2 %>% 
   filter(`Shipping Date`>=floor_date(today(),unit = "week",week_start = 1)-7) %>% 
   filter(`Shipping Date`<floor_date(today(),unit = "week",week_start = 1)) %>% 
   filter(!is.na(`Dept #`),
-         `Dose Size`!='Unknown')
+         `Dose Size`!='Unknown',
+         !is.na(`Destination #`))
 
 dose4<-dose2 %>%
   filter(`Shipping Date`>=floor_date(today(),unit = "week",week_start = 1)-7) %>% 
   filter(`Shipping Date`<floor_date(today(),unit = "week",week_start = 1)) %>% 
-  filter(is.na(`Dept #`) | `Dose Size`=='Unknown')
+  filter(is.na(`Dept #`) | `Dose Size`=='Unknown' | is.na(`Destination #`))
 
 write_csv(x = dose4,path = 'fixme.csv',append = FALSE)
 
@@ -72,6 +89,8 @@ write_csv(x = dose6,'dosebillingweek.csv')
 ####################### ADD MANUAL DOSES TO WEEKLY FILE ##################
 
 dose8<-read_csv('dosebillingweek.csv')
+
+dose8$`Dept #`<-as.character(dose8$`Dept #`)
 
 dose9<-dose7 %>% 
   group_by(`Dept #`) %>% 
